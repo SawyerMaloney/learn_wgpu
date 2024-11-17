@@ -112,7 +112,7 @@ impl<'a> State<'a> {
     fn update(&mut self) {
     }
 
-    fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
+    fn render(&mut self, clear_color: wgpu::Color) -> Result<(), wgpu::SurfaceError> {
         let output = self.surface.get_current_texture()?; // wait for surface to provide new
                                                           // SurfaceTexture
         let view = output.texture.create_view(&wgpu::TextureViewDescriptor::default());
@@ -125,15 +125,10 @@ impl<'a> State<'a> {
             let _render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Render Pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &view,
+                    view: &view, // what texture to save colors to
                     resolve_target: None,
                     ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color {
-                            r: 0.1,
-                            g: 0.2,
-                            b: 0.3,
-                            a: 1.0,
-                        }),
+                        load: wgpu::LoadOp::Clear(clear_color),
                         store: wgpu::StoreOp::Store,
                     },
                 })],
@@ -158,6 +153,13 @@ pub async fn run() {
 
     let mut state = State::new(&window).await;
 
+    let mut clear_color: wgpu::Color = wgpu::Color {
+        r: 0.1,
+        g: 0.2,
+        b: 0.3,
+        a: 1.0,
+    };
+
     event_loop.run(move |event, control_flow| {
         match event {
             Event::WindowEvent {
@@ -177,6 +179,16 @@ pub async fn run() {
                 WindowEvent::Resized(physical_size) => {
                     state.resize(*physical_size);
                 },
+                WindowEvent::CursorMoved { device_id: _, position: pos } => {
+                    // change clear color
+                    clear_color = wgpu::Color {
+                        r: pos.x / f64::from(state.size.width),
+                        g: pos.y / f64::from(state.size.height),
+                        b: 0.5,
+                        a: 1.0,
+                    };
+                    println!("{}", pos.x);
+                },
                 WindowEvent::RedrawRequested => {
                     // this tells winit that we want another frame after this one
                     state.window().request_redraw();
@@ -188,7 +200,7 @@ pub async fn run() {
                     */
 
                     state.update();
-                    match state.render() {
+                    match state.render(clear_color) {
                         Ok(_) => {}
                         // reconfigure the surface if it's lost or outdated
                         Err(
