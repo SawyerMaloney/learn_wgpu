@@ -39,15 +39,17 @@ impl Vertex {
 
 // unsafe impl bytemuck::Pod for Vertex {}
 // unsafe impl bytemuck::Zeroable for Vertex {}
-/*
-let VERTICES: &[Vertex] = &[
+const VERTICES1: &[Vertex] = &[
     Vertex { position: [-0.0868241, 0.49240386, 0.0], color: [0.5, 0.0, 0.5] }, // A
     Vertex { position: [-0.49513406, 0.06958647, 0.0], color: [0.5, 0.0, 0.5] }, // B
     Vertex { position: [-0.21918549, -0.44939706, 0.0], color: [0.5, 0.0, 0.5] }, // C
-    Vertex { position: [0.35966998, -0.3473291, 0.0], color: [0.5, 0.0, 0.5] }, // D
-    Vertex { position: [0.44147372, 0.2347359, 0.0], color: [0.5, 0.0, 0.5] }, // E
 ];
-*/
+
+const VERTICES2: &[Vertex] = &[
+    Vertex { position: [-0.2, 0.49240386, 0.0], color: [0.5, 0.0, 0.5] }, // A
+    Vertex { position: [0.9, 0.06958647, 0.0], color: [0.5, 0.0, 0.5] }, // B
+    Vertex { position: [-0.01918549, -0.44939706, 0.0], color: [0.5, 0.0, 0.5] }, // C
+];
 
 const INDICES: &[u16] = &[
     0, 1, 4,
@@ -321,6 +323,10 @@ pub async fn run() {
         a: 1.0,
     };
 
+    let mut current_buffer = true;
+
+    println!("{}", state.window.inner_size());
+
     event_loop.run(move |event, control_flow| {
         match event {
             Event::WindowEvent {
@@ -351,11 +357,12 @@ pub async fn run() {
                 } => {
                     // space pressed => change indices
                     println!("Space pressed");
-                    state.vertices = &[
-                        Vertex { position: [0.0868241, 0.49240386, 0.0], color: [0.0, 0.0, 0.5] }, // A
-                        Vertex { position: [-0.49513406, 0.01958647, 0.0], color: [0.5, 0.0, 0.5] }, // B
-                        Vertex { position: [-0.21918549, -0.44939706, 0.0], color: [0.5, 0.0, 0.5] }, // C
-                    ];
+                    if current_buffer {
+                        state.vertices = VERTICES2;
+                    } else {
+                        state.vertices = VERTICES1;
+                    }
+                    current_buffer = !current_buffer;
                 },
                 WindowEvent::CursorMoved { device_id: _, position: pos } => {
                     // change clear color
