@@ -45,11 +45,13 @@ const VERTICES1: &[Vertex] = &[
     Vertex { position: [-0.21918549, -0.44939706, 0.0], color: [0.5, 0.0, 0.5] }, // C
 ];
 
+
 const VERTICES2: &[Vertex] = &[
-    Vertex { position: [-0.2, 0.49240386, 0.0], color: [0.5, 0.0, 0.5] }, // A
-    Vertex { position: [0.9, 0.06958647, 0.0], color: [0.5, 0.0, 0.5] }, // B
-    Vertex { position: [-0.01918549, -0.44939706, 0.0], color: [0.5, 0.0, 0.5] }, // C
+    Vertex { position: [-0.75, 0.75, 0.0], color: [0.25, 0.0, 0.5] }, // A
+    Vertex { position: [0.0, -0.75, 0.0], color: [0.25, 0.0, 0.5] }, // B
+    Vertex { position: [0.75, 0.75, 0.0], color: [0.5, 0.0, 0.5] }, // C
 ];
+
 
 const INDICES: &[u16] = &[
     0, 1, 4,
@@ -65,9 +67,9 @@ struct State<'a> {
     size: winit::dpi::PhysicalSize<u32>,
     render_pipeline: wgpu::RenderPipeline,
     vertex_buffer: wgpu::Buffer,
-    num_vertices: u32,
+    // num_vertices: u32,
     index_buffer: wgpu::Buffer,
-    num_indices: u32,
+    // num_indices: u32,
     vertices: &'a[Vertex],
     // The window must be declared after the surface so
     // it gets dropped after it as the surface contains
@@ -82,11 +84,7 @@ impl<'a> State<'a> {
         let size = window.inner_size();
 
         // initial vertices 
-        let vertices: &[Vertex] = &[
-            Vertex { position: [-0.0868241, 0.49240386, 0.0], color: [0.5, 0.0, 0.5] }, // A
-            Vertex { position: [-0.49513406, 0.06958647, 0.0], color: [0.5, 0.0, 0.5] }, // B
-            Vertex { position: [-0.21918549, -0.44939706, 0.0], color: [0.5, 0.0, 0.5] }, // C
-        ];
+        let vertices: &[Vertex] = VERTICES1;
 
         // The instance is a handle to our GPU
         // Backends::all => Vulkan + Metal + DX12 + Browser WebGPU
@@ -217,8 +215,8 @@ impl<'a> State<'a> {
         );
 
 
-        let num_indices = INDICES.len() as u32;
-        let num_vertices = vertices.len() as u32;
+        // let num_indices = INDICES.len() as u32;
+        // let num_vertices = vertices.len() as u32;
         
         Self {
             window,
@@ -229,9 +227,9 @@ impl<'a> State<'a> {
             size,
             render_pipeline,
             vertex_buffer,
-            num_vertices,
+            // num_vertices,
             index_buffer,
-            num_indices,
+            // num_indices,
             vertices,
         }
     }
@@ -250,7 +248,7 @@ impl<'a> State<'a> {
         }
     }
 
-    fn input(&mut self, event: &WindowEvent) -> bool {
+    fn input(&mut self, _event: &WindowEvent) -> bool {
         false
     }
 
@@ -284,7 +282,7 @@ impl<'a> State<'a> {
             self.recreate_vertex_buffer();
             render_pass.set_pipeline(&self.render_pipeline);
             render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-            render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
+            // render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
             // render_pass.draw_indexed(0..self.num_indices, 0, 0..1);
             render_pass.draw(0..3, 0..1);
         }
@@ -325,9 +323,9 @@ pub async fn run() {
 
     let mut current_buffer = true;
 
-    println!("{}", state.window.inner_size());
+    // println!("{}", state.window.inner_size());
 
-    event_loop.run(move |event, control_flow| {
+    let _ = event_loop.run(move |event, control_flow| {
         match event {
             Event::WindowEvent {
                 ref event,
