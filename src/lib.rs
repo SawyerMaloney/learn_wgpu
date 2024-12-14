@@ -47,9 +47,10 @@ const VERTICES1: &[Vertex] = &[
 
 
 const VERTICES2: &[Vertex] = &[
-    Vertex { position: [-0.75, 0.75, 0.0], color: [0.25, 0.0, 0.5] }, // A
-    Vertex { position: [0.0, -0.75, 0.0], color: [0.25, 0.0, 0.5] }, // B
-    Vertex { position: [0.75, 0.75, 0.0], color: [0.5, 0.0, 0.5] }, // C
+    Vertex { position: [-0.5, 0.5, 0.0], color: [0.5, 0.0, 0.5] }, // A
+    Vertex { position: [-0.5, -0.5, 0.0], color: [0.5, 0.0, 0.5] }, // B
+    Vertex { position: [0.5, -0.5, 0.0], color: [0.5, 0.0, 0.5] }, // C
+    Vertex { position: [0.5, 0.5, 0.0], color: [0.5, 0.0, 0.5] }, // D
 ];
 
 
@@ -67,9 +68,9 @@ struct State<'a> {
     size: winit::dpi::PhysicalSize<u32>,
     render_pipeline: wgpu::RenderPipeline,
     vertex_buffer: wgpu::Buffer,
-    // num_vertices: u32,
+    num_vertices: u32,
     index_buffer: wgpu::Buffer,
-    // num_indices: u32,
+    num_indices: u32,
     vertices: &'a[Vertex],
     // The window must be declared after the surface so
     // it gets dropped after it as the surface contains
@@ -141,6 +142,55 @@ impl<'a> State<'a> {
             view_formats: vec![],
             desired_maximum_frame_latency: 2,
         };
+
+        // not sure where surface.configure is, adding texture stuff here
+        let diffuse_bytes = include_bytes!("happy-tree.png");
+        let diffuse_image = image::load_from_memory(diffuse_bytes).unwrap();
+        let diffusergba = diffuse_image.to_rgba8();
+
+        use image::GenericImageView;
+        let dimensions = diffuse_image.dimensions();
+
+        // create image texture
+        let texture_size = wgpu::Extent3d {
+            width: dimensions.0,
+            height: dimensions.1,
+            depth_or_array_layers: 1,
+        };
+
+        let diffuse_texture = device.create_texture(
+            &wgpu::TextureDescriptor {
+                // all textures are stored 3d. rep. 2d by setting depth to 1
+                size: texture_size,
+                mip_level_count: 1,
+                sample_count: 1,
+                dimension: wgpu::TextureDimension::D2,
+                format: wgpu::TextureFormat::Rbga8UnormSrgb,
+                // use in shaders, copy data to this texture
+                usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+                label: Some("diffuse_texture"),
+                view_formats: &[],
+            }
+        );
+
+        queue.write_texture(
+            // where to copy the pixel data
+            wgpu::ImageCopyTexture {
+                texture: &diffuse_texture,
+                mip_leve: 0,
+                origin: wpgu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            // actual data
+            &diffuse_rgba,
+            // layout of texture
+            wgpu::ImageDataLayout {
+                offset: 0,
+                bytes_per_row: Some(4 * dimensions.0),
+                rows_per_image: Some(dimensions.1),
+            },
+            texture_size,
+        );
 
         // possibly shorter/easier:
         // let shader = device.create_shader_module(wgpu::include_wgsl!("shader.wgsl"));
@@ -215,8 +265,8 @@ impl<'a> State<'a> {
         );
 
 
-        // let num_indices = INDICES.len() as u32;
-        // let num_vertices = vertices.len() as u32;
+        let num_indices = INDICES.len() as u32;
+        let num_vertices = vertices.len() as u32;
         
         Self {
             window,
@@ -227,9 +277,9 @@ impl<'a> State<'a> {
             size,
             render_pipeline,
             vertex_buffer,
-            // num_vertices,
+            num_vertices,
             index_buffer,
-            // num_indices,
+            num_indices,
             vertices,
         }
     }
@@ -323,8 +373,6 @@ pub async fn run() {
 
     let mut current_buffer = true;
 
-    // println!("{}", state.window.inner_size());
-
     let _ = event_loop.run(move |event, control_flow| {
         match event {
             Event::WindowEvent {
@@ -357,6 +405,7 @@ pub async fn run() {
                     println!("Space pressed");
                     if current_buffer {
                         state.vertices = VERTICES2;
+                        state.num_vertices = 4;
                     } else {
                         state.vertices = VERTICES1;
                     }
