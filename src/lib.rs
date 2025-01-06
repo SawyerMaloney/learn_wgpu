@@ -13,7 +13,7 @@ use winit::{
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 struct Vertex {
     position: [f32; 3],
-    color: [f32; 3],
+    tex_coords: [f32; 2],
 }
 
 impl Vertex {
@@ -30,27 +30,20 @@ impl Vertex {
                 wgpu::VertexAttribute {
                     offset: std::mem::size_of::<[f32; 3]>() as wgpu::BufferAddress,
                     shader_location: 1,
-                    format: wgpu::VertexFormat::Float32x3,
+                    format: wgpu::VertexFormat::Float32x2,
                 }
             ]
         }
     }
 }
 
-// unsafe impl bytemuck::Pod for Vertex {}
-// unsafe impl bytemuck::Zeroable for Vertex {}
-const VERTICES1: &[Vertex] = &[
-    Vertex { position: [-0.0868241, 0.49240386, 0.0], color: [0.5, 0.0, 0.5] }, // A
-    Vertex { position: [-0.49513406, 0.06958647, 0.0], color: [0.5, 0.0, 0.5] }, // B
-    Vertex { position: [-0.21918549, -0.44939706, 0.0], color: [0.5, 0.0, 0.5] }, // C
-];
 
-
-const VERTICES2: &[Vertex] = &[
-    Vertex { position: [-0.5, 0.5, 0.0], color: [0.5, 0.0, 0.5] }, // A
-    Vertex { position: [-0.5, -0.5, 0.0], color: [0.5, 0.0, 0.5] }, // B
-    Vertex { position: [0.5, -0.5, 0.0], color: [0.5, 0.0, 0.5] }, // C
-    Vertex { position: [0.5, 0.5, 0.0], color: [0.5, 0.0, 0.5] }, // D
+const VERTICES: &[Vertex] = &[
+    Vertex { position: [-0.0868241, 0.49240386, 0.0], tex_coords: [0.4131759, 0.99240386], }, // A
+    Vertex { position: [-0.49513406, 0.06958647, 0.0], tex_coords: [0.0048659444, 0.56958647], }, // B
+    Vertex { position: [-0.21918549, -0.44939706, 0.0], tex_coords: [0.28081453, 0.05060294], }, // C
+    Vertex { position: [0.35966998, -0.3473291, 0.0], tex_coords: [0.85967, 0.1526709], }, // D
+    Vertex { position: [0.44147372, 0.2347359, 0.0], tex_coords: [0.9414737, 0.7347359], }, // E
 ];
 
 
@@ -72,6 +65,7 @@ struct State<'a> {
     index_buffer: wgpu::Buffer,
     num_indices: u32,
     vertices: &'a[Vertex],
+    diffuse_bind_group: wgpu::BindGroup,
     // The window must be declared after the surface so
     // it gets dropped after it as the surface contains
     // unsafe references to the window's resources.
@@ -85,7 +79,8 @@ impl<'a> State<'a> {
         let size = window.inner_size();
 
         // initial vertices 
-        let vertices: &[Vertex] = VERTICES1;
+        // let vertices: &[Vertex] = VERTICES1;
+        let vertices: &[Vertex] = VERTICES;
 
         // The instance is a handle to our GPU
         // Backends::all => Vulkan + Metal + DX12 + Browser WebGPU
@@ -146,7 +141,7 @@ impl<'a> State<'a> {
         // not sure where surface.configure is, adding texture stuff here
         let diffuse_bytes = include_bytes!("happy-tree.png");
         let diffuse_image = image::load_from_memory(diffuse_bytes).unwrap();
-        let diffusergba = diffuse_image.to_rgba8();
+        let diffuse_rgba = diffuse_image.to_rgba8();
 
         use image::GenericImageView;
         let dimensions = diffuse_image.dimensions();
@@ -165,7 +160,7 @@ impl<'a> State<'a> {
                 mip_level_count: 1,
                 sample_count: 1,
                 dimension: wgpu::TextureDimension::D2,
-                format: wgpu::TextureFormat::Rbga8UnormSrgb,
+                format: wgpu::TextureFormat::Rgba8UnormSrgb,
                 // use in shaders, copy data to this texture
                 usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
                 label: Some("diffuse_texture"),
@@ -177,8 +172,8 @@ impl<'a> State<'a> {
             // where to copy the pixel data
             wgpu::ImageCopyTexture {
                 texture: &diffuse_texture,
-                mip_leve: 0,
-                origin: wpgu::Origin3d::ZERO,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
                 aspect: wgpu::TextureAspect::All,
             },
             // actual data
@@ -192,6 +187,59 @@ impl<'a> State<'a> {
             texture_size,
         );
 
+        // we don't need to configure the texture view much, let wgpu define it
+        let diffuse_texture_view = diffuse_texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let diffuse_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
+            address_mode_u: wgpu::AddressMode::ClampToEdge,
+            address_mode_v: wgpu::AddressMode::ClampToEdge,
+            address_mode_w: wgpu::AddressMode::ClampToEdge,
+            mag_filter: wgpu::FilterMode::Linear,
+            min_filter: wgpu::FilterMode::Nearest,
+            mipmap_filter: wgpu::FilterMode::Nearest,
+            ..Default::default()
+        });
+
+        let texture_bind_group_layout = 
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                entries: &[
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 0,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Texture {
+                            multisampled: false,
+                            view_dimension: wgpu::TextureViewDimension::D2,
+                            sample_type: wgpu::TextureSampleType::Float {filterable: true},
+                        },
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 1,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        // should match filterable field of texture entry above
+                        ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                        count: None,
+                    },
+                ],
+                label: Some("texture_bind_group_layout"),
+            });
+
+        let diffuse_bind_group = device.create_bind_group(
+            &wgpu::BindGroupDescriptor{
+                layout: &texture_bind_group_layout,
+                entries: &[
+                    wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: wgpu::BindingResource::TextureView(&diffuse_texture_view),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 1,
+                        resource: wgpu::BindingResource::Sampler(&diffuse_sampler),
+                    }
+                ],
+                label: Some("diffuse_bind_group"),
+            }
+            );
+
         // possibly shorter/easier:
         // let shader = device.create_shader_module(wgpu::include_wgsl!("shader.wgsl"));
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
@@ -201,7 +249,7 @@ impl<'a> State<'a> {
 
         let render_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("Render Pipeline Layout"),
-            bind_group_layouts: &[],
+            bind_group_layouts: &[&texture_bind_group_layout],
             push_constant_ranges: &[],
         });
 
@@ -281,6 +329,7 @@ impl<'a> State<'a> {
             index_buffer,
             num_indices,
             vertices,
+            diffuse_bind_group,
         }
     }
 
@@ -331,10 +380,11 @@ impl<'a> State<'a> {
             });
             self.recreate_vertex_buffer();
             render_pass.set_pipeline(&self.render_pipeline);
+            render_pass.set_bind_group(0, &self.diffuse_bind_group, &[]);
             render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-            // render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
-            // render_pass.draw_indexed(0..self.num_indices, 0, 0..1);
-            render_pass.draw(0..3, 0..1);
+            render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
+            render_pass.draw_indexed(0..self.num_indices, 0, 0..1);
+            // render_pass.draw(0..3, 0..1);
         }
 
         // submit will accept anything that implements IntoIter
@@ -371,8 +421,6 @@ pub async fn run() {
         a: 1.0,
     };
 
-    let mut current_buffer = true;
-
     let _ = event_loop.run(move |event, control_flow| {
         match event {
             Event::WindowEvent {
@@ -391,25 +439,6 @@ pub async fn run() {
                 } => control_flow.exit(),
                 WindowEvent::Resized(physical_size) => {
                     state.resize(*physical_size);
-                },
-                WindowEvent::KeyboardInput {
-                    event:
-                        KeyEvent {
-                            state: ElementState::Pressed,
-                            physical_key: PhysicalKey::Code(KeyCode::Space),
-                            ..
-                        },
-                        ..
-                } => {
-                    // space pressed => change indices
-                    println!("Space pressed");
-                    if current_buffer {
-                        state.vertices = VERTICES2;
-                        state.num_vertices = 4;
-                    } else {
-                        state.vertices = VERTICES1;
-                    }
-                    current_buffer = !current_buffer;
                 },
                 WindowEvent::CursorMoved { device_id: _, position: pos } => {
                     // change clear color
